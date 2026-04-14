@@ -1,71 +1,68 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+
 public class PlayerMoviment : MonoBehaviour
 {
     public float moveSpeed = 5f;
-    public float jumpForce = 10f;
+    public float jumpForce = 8f;
+    public float gravity = -20f;
 
-    public Transform groundCheck;
-    public float groundCheckRadius = 0.2f;
-    public LayerMask groundLayer;
-
-    private Rigidbody rb;
-    private bool isGrounded;
-
+    private CharacterController controller;
     private InputSystem_Actions inputActions;
-    private Vector2 moveInput;
+    private GrapplingHook grapplingHook; // ADD THIS
 
+    private Vector2 moveInput;
+    private float verticalVelocity;
+    private bool jumpPressed;
+    private Vector3 externalVelocity = Vector3.zero;
     void Awake()
     {
+        controller = GetComponent<CharacterController>();
+        grapplingHook = GetComponent<GrapplingHook>(); // ADD THIS
+
         inputActions = new InputSystem_Actions();
 
         inputActions.Player.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
         inputActions.Player.Move.canceled += ctx => moveInput = Vector2.zero;
 
-        inputActions.Player.Jump.performed += ctx => Jump();
+        inputActions.Player.Jump.performed += ctx => jumpPressed = true;
     }
 
-    void OnEnable()
+    public void SetExternalVelocity(Vector3 v)
     {
-        inputActions.Enable();
+        externalVelocity = v;
+        verticalVelocity = v.y; // sync vertical so gravity continues naturally
     }
-
-    void OnDisable()
-    {
-        inputActions.Disable();
-    }
-
-    void Start()
-    {
-        rb = GetComponent<Rigidbody>();
-    }
+    void OnEnable() => inputActions.Enable();
+    void OnDisable() => inputActions.Disable();
 
     void Update()
     {
-        // Ground check
-        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
-    }
-
-    void FixedUpdate()
-    {
-        // Movement
-        rb.linearVelocity = new Vector2(moveInput.x * moveSpeed, rb.linearVelocity.y);
-    }
-
-    void Jump()
-    {
-        if (isGrounded)
+        if (grapplingHook.IsGrappling)
         {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            externalVelocity = Vector3.zero;
+            return;
         }
-    }
 
-    void OnDrawGizmosSelected()
-    {
-        if (groundCheck != null)
+        if (controller.isGrounded && verticalVelocity < 0)
         {
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+            verticalVelocity = -2f;
+            externalVelocity = Vector3.zero; // kill horizontal launch when landing
         }
+
+        if (jumpPressed && controller.isGrounded)
+            verticalVelocity = jumpForce;
+
+        jumpPressed = false;
+
+        verticalVelocity += gravity * Time.deltaTime;
+
+        // Blend external (swing) velocity with normal movement over time
+        externalVelocity = Vector3.Lerp(externalVelocity, Vector3.zero, Time.deltaTime * 3f);
+
+        Vector3 move = new Vector3(moveInput.x * moveSpeed + externalVelocity.x, 0, 0);
+        move.y = verticalVelocity;
+
+        controller.Move(move * Time.deltaTime);
     }
 }
