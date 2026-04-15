@@ -11,15 +11,16 @@ public class PlayerMoviment : MonoBehaviour
     private InputSystem_Actions inputActions;
     private GrapplingHook grapplingHook; // ADD THIS
 
-    private Vector2 moveInput;
-    private float verticalVelocity;
+    public Vector2 moveInput;
+    public float verticalVelocity;
     private bool jumpPressed;
     private Vector3 externalVelocity = Vector3.zero;
+    private Dash dash;
     void Awake()
     {
         controller = GetComponent<CharacterController>();
         grapplingHook = GetComponent<GrapplingHook>(); // ADD THIS
-
+        dash = GetComponent<Dash>();  
         inputActions = new InputSystem_Actions();
 
         inputActions.Player.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
@@ -43,7 +44,7 @@ public class PlayerMoviment : MonoBehaviour
             externalVelocity = Vector3.zero;
             return;
         }
-
+        if (dash.IsDashing) return;
         if (controller.isGrounded && verticalVelocity < 0)
         {
             verticalVelocity = -2f;

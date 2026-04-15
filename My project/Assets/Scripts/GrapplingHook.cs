@@ -6,8 +6,8 @@ public class GrapplingHook : MonoBehaviour
     [Header("Settings")]
     public float maxDistance = 15f;
     public float gravity = -25f;
-    public float launchSpeed = 5f;      // initial boost when grapple connects
-    public float releaseJumpForce = 6f; // upward boost when you let go
+    public float launchSpeed = 5f;
+    public float releaseJumpForce = 6f;
     public LayerMask grappleLayer;
 
     [Header("Rope Visual")]
@@ -25,10 +25,12 @@ public class GrapplingHook : MonoBehaviour
     private Vector3 swingVelocity = Vector3.zero;
 
     private CharacterController controller;
+    private SkillCheck skillCheck;
 
     void Awake()
     {
         controller = GetComponent<CharacterController>();
+        skillCheck = FindObjectOfType<SkillCheck>();
     }
 
     void OnEnable()
@@ -52,20 +54,21 @@ public class GrapplingHook : MonoBehaviour
     {
         Vector3 dir = GetAimDirection();
 
-        if (Physics.Raycast(ropeOrigin.position, dir, out RaycastHit hit, maxDistance, grappleLayer))
+        if (!Physics.Raycast(ropeOrigin.position, dir, out RaycastHit hit, maxDistance, grappleLayer))
+            return;
+
+        skillCheck.StartSkillCheck(fireAction.action, (bool success) =>
         {
+            if (!success) return;
+
             grapplePoint = hit.point;
             ropeLength = Vector3.Distance(transform.position, grapplePoint);
-
-            // Inherit any existing movement as swing momentum
-            // and give a small boost toward the grapple point
             swingVelocity += dir * launchSpeed;
-
             isGrappling = true;
             ropeRenderer.enabled = true;
             ropeRenderer.SetPosition(0, ropeOrigin.position);
             ropeRenderer.SetPosition(1, grapplePoint);
-        }
+        });
     }
 
     void StopGrapple()
@@ -75,8 +78,6 @@ public class GrapplingHook : MonoBehaviour
         isGrappling = false;
         ropeRenderer.enabled = false;
 
-        // Pass current swing velocity to the movement script so the player
-        // flies through the air after releasing
         GetComponent<PlayerMoviment>().SetExternalVelocity(swingVelocity);
     }
 
@@ -84,41 +85,34 @@ public class GrapplingHook : MonoBehaviour
     {
         Vector3 dir = GetAimDirection();
         Debug.DrawRay(ropeOrigin.position, dir * maxDistance, Color.red);
+
         if (!isGrappling) return;
 
         SimulateSwing();
-        ropeRenderer.SetPosition(0, ropeOrigin.position); // rope follows player
+        ropeRenderer.SetPosition(0, ropeOrigin.position);
     }
 
     void SimulateSwing()
     {
-        // 1. Apply gravity
         swingVelocity.y += gravity * Time.deltaTime;
 
-        // 2. Get direction from grapple point to player
         Vector3 toPlayer = transform.position - grapplePoint;
         float currentDist = toPlayer.magnitude;
 
-        // 3. Constrain to rope length — if too far, pull back
         if (currentDist > ropeLength)
         {
-            // Project velocity onto the tangent of the circle (remove outward component)
             Vector3 radial = toPlayer.normalized;
             float radialSpeed = Vector3.Dot(swingVelocity, radial);
 
-            if (radialSpeed > 0) // only cancel outward velocity
+            if (radialSpeed > 0)
                 swingVelocity -= radial * radialSpeed;
 
-            // Snap position to rope length
             Vector3 corrected = grapplePoint + radial * ropeLength;
             Vector3 correction = corrected - transform.position;
             controller.Move(correction);
         }
 
-        // 4. Flatten Z — keep it in 2D plane
         swingVelocity.z = 0f;
-
-        // 5. Move the player
         controller.Move(swingVelocity * Time.deltaTime);
     }
 
