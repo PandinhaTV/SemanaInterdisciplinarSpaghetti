@@ -3171,7 +3171,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FinishLine
   timerText: {fileID: 1021861999}
-  timeLimit: 60
+  timeLimit: 180
   characterPrefab: {fileID: 1306380220}
   characterSpawnPoint: {fileID: 1656951112}
   appearAnimationTrigger: Appear
