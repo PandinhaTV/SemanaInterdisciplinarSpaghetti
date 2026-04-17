@@ -8,14 +8,14 @@ public class Dash : MonoBehaviour
     public float dashSpeed = 20f;
     public float dashDuration = 0.2f;
     public float dashCooldown = 1f;
-
+    public AudioClip dashSound;
     [Header("Input")]
     public InputActionReference dashAction;
 
     private CharacterController controller;
     private SkillCheck skillCheck;
     private PlayerMoviment playerMoviment;
-
+    private AudioSource audioSource;
     private bool isDashing = false;
     private bool onCooldown = false;
     private Vector3 dashDirection;
@@ -27,6 +27,9 @@ public class Dash : MonoBehaviour
         controller = GetComponent<CharacterController>();
         skillCheck = FindObjectOfType<SkillCheck>();
         playerMoviment = GetComponent<PlayerMoviment>();
+        audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.spatialBlend = 0f; // 2D sound
+        audioSource.loop = false;
     }
 
     void OnEnable()
@@ -57,6 +60,7 @@ public class Dash : MonoBehaviour
         skillCheck.StartSkillCheck(dashAction.action, (bool success) =>
         {
             if (!success) return;
+            PlaySound(dashSound);
             StartCoroutine(PerformDash());
         });
     }
@@ -83,5 +87,12 @@ public class Dash : MonoBehaviour
         onCooldown = true;
         yield return new WaitForSeconds(dashCooldown);
         onCooldown = false;
+    }
+    void PlaySound(AudioClip clip)
+    {
+        if (clip == null) return;
+        audioSource.loop = false;
+        audioSource.pitch = 1f;
+        audioSource.PlayOneShot(clip);
     }
 }

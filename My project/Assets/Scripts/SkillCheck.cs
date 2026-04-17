@@ -19,29 +19,35 @@ public class SkillCheck : MonoBehaviour
     public float normalTimeScale = 1f;
 
     [Header("Timing")]
-    public float inputLockDuration = 0.15f;  // can't confirm instantly on open
-    public float cooldownDuration = 0.3f;    // can't reopen right after closing
+    public float inputLockDuration = 0.15f;
+    public float cooldownDuration = 0.3f;
 
     private System.Action<bool> onComplete;
     private InputAction confirmAction;
-    private bool inputLocked = false;  // true during the brief window after opening
-    private bool onCooldown = false;   // true during the brief window after closing
+    private bool inputLocked = false;
+    private bool onCooldown = false;
+
+    void Start()
+    {
+        // Start hidden
+        gameObject.SetActive(false);
+    }
 
     public void StartSkillCheck(InputAction action, System.Action<bool> onComplete)
     {
-        this.onComplete = onComplete;
-        this.confirmAction = action;
         if (active || onCooldown) return;
 
-        
+        this.onComplete = onComplete;
+        this.confirmAction = action;
 
-        // Open immediately
+        // Show the skill check UI
+        gameObject.SetActive(true);
+
         active = true;
         currentAngle = Random.Range(0f, 360f);
         Time.timeScale = slowTimeScale;
         Time.fixedDeltaTime = 0.02f * Time.timeScale;
 
-        // Lock input briefly so the opening press doesn't instantly confirm
         StartCoroutine(InputLock());
     }
 
@@ -68,7 +74,6 @@ public class SkillCheck : MonoBehaviour
 
         needle.rotation = Quaternion.Euler(0, 0, -currentAngle);
 
-        // Only accept input after the lock window
         if (!inputLocked && confirmAction != null && confirmAction.WasPressedThisFrame())
             CheckResult();
     }
@@ -86,7 +91,9 @@ public class SkillCheck : MonoBehaviour
         onComplete?.Invoke(skill);
         confirmAction = null;
 
-        // Small cooldown before it can open again
+        // Hide the skill check UI
+        gameObject.SetActive(false);
+
         StartCoroutine(Cooldown());
     }
 

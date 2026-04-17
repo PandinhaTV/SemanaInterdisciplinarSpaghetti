@@ -17,6 +17,12 @@ public class GrapplingHook : MonoBehaviour
     [Header("Input")]
     public InputActionReference fireAction;
 
+    [Header("Audio")]
+    public AudioClip throwSound;      // when the hook is fired
+    public AudioClip landSound;       // when it hits a wall
+    public AudioClip swingSound;      // looping while travelling
+    private AudioSource audioSource;
+
     public bool IsGrappling => isGrappling;
 
     private Vector3 grapplePoint;
@@ -30,7 +36,12 @@ public class GrapplingHook : MonoBehaviour
     void Awake()
     {
         controller = GetComponent<CharacterController>();
-        skillCheck = FindObjectOfType<SkillCheck>();
+        skillCheck = FindObjectOfType<SkillCheck>(true);
+
+        // Add AudioSource automatically
+        audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.spatialBlend = 0f; // 2D sound
+        audioSource.loop = false;
     }
 
     void OnEnable()
@@ -57,10 +68,13 @@ public class GrapplingHook : MonoBehaviour
         if (!Physics.Raycast(ropeOrigin.position, dir, out RaycastHit hit, maxDistance, grappleLayer))
             return;
 
+        // Play throw sound immediately on fire
+        
+
         skillCheck.StartSkillCheck(fireAction.action, (bool success) =>
         {
             if (!success) return;
-
+            PlaySound(throwSound);
             grapplePoint = hit.point;
             ropeLength = Vector3.Distance(transform.position, grapplePoint);
             swingVelocity += dir * launchSpeed;
@@ -68,6 +82,12 @@ public class GrapplingHook : MonoBehaviour
             ropeRenderer.enabled = true;
             ropeRenderer.SetPosition(0, ropeOrigin.position);
             ropeRenderer.SetPosition(1, grapplePoint);
+
+            // Play land sound when hook attaches to wall
+            PlaySound(landSound);
+
+            // Start looping swing sound
+            PlayLooping(swingSound);
         });
     }
 
@@ -77,6 +97,9 @@ public class GrapplingHook : MonoBehaviour
 
         isGrappling = false;
         ropeRenderer.enabled = false;
+
+        // Stop swing loop when releasing
+        audioSource.Stop();
 
         GetComponent<PlayerMoviment>().SetExternalVelocity(swingVelocity);
     }
@@ -89,7 +112,11 @@ public class GrapplingHook : MonoBehaviour
         if (!isGrappling) return;
 
         SimulateSwing();
-        ropeRenderer.SetPosition(0, ropeOrigin.position);
+        UpdateRopeWobble();
+
+        // Adjust swing sound pitch based on speed — faster = higher pitch
+        if (audioSource.isPlaying && audioSource.clip == swingSound)
+            audioSource.pitch = Mathf.Lerp(0.8f, 1.4f, swingVelocity.magnitude / 15f);
     }
 
     void SimulateSwing()
@@ -116,6 +143,23 @@ public class GrapplingHook : MonoBehaviour
         controller.Move(swingVelocity * Time.deltaTime);
     }
 
+    void PlaySound(AudioClip clip)
+    {
+        if (clip == null) return;
+        audioSource.loop = false;
+        audioSource.pitch = 1f;
+        audioSource.PlayOneShot(clip);
+    }
+
+    void PlayLooping(AudioClip clip)
+    {
+        if (clip == null) return;
+        audioSource.loop = true;
+        audioSource.clip = clip;
+        audioSource.pitch = 1f;
+        audioSource.Play();
+    }
+
     Vector3 GetAimDirection()
     {
         var gamepad = Gamepad.current;
@@ -138,5 +182,22 @@ public class GrapplingHook : MonoBehaviour
 
         if (dir.sqrMagnitude < 0.001f) return Vector3.right;
         return dir.normalized;
+    }
+
+    void UpdateRopeWobble()
+    {
+        int segments = 6;
+        ropeRenderer.positionCount = segments;
+
+        for (int i = 0; i < segments; i++)
+        {
+            float t = i / (float)(segments - 1);
+            Vector3 point = Vector3.Lerp(ropeOrigin.position, grapplePoint, t);
+
+            float wobble = Mathf.Sin(t * Mathf.PI);
+            point.y += Mathf.Sin(Time.time * 2f + t * 3f) * 0.03f * wobble;
+
+            ropeRenderer.SetPosition(i, point);
+        }
     }
 }
